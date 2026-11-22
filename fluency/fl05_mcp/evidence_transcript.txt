@@ -1,0 +1,41 @@
+========================================================================
+FL-05 MCP EVIDENCE RUN
+Timestamp : 2026-11-22T18:32:40
+Python    : 3.12.3  (/home/hatch/workspace/ml_env/bin/python)
+mcp SDK   : 1.30.0
+Server    : /home/hatch/workspace/flyrank-submit/fluency/fl05_mcp/filesystem_server.py
+Sandbox   : /home/hatch/workspace/flyrank-submit/fluency/fl05_mcp/sandbox
+Transport : stdio (server spawned as a subprocess)
+========================================================================
+
+[handshake] initialize() OK — server: fl05-filesystem-sandbox v1.30.0, protocol: 2025-11-25
+
+[tools] list_tools() returned 3 tools:
+  - list_files: List files (name and size in bytes) inside the sandbox folder.
+  - read_file: Read and return the full text of one file inside the sandbox.
+  - count_lines: Count, per file and in total, how many lines contain `term` (case-insensitive).
+
+--- TASK 1: list_files() — list the sandbox folder ---
+file  kaggle_scores.md  (667 bytes)
+file  linkedin_draft_idea.md  (493 bytes)
+file  report_task.md  (364 bytes)
+
+--- TASK 2: read_file('kaggle_scores.md') — read one file ---
+# Kaggle scores — week of 22 Nov 2026
+Name That LLM: v60 scored 0.538, a new best. Rank 4,158 of 6,686; #1 is at 0.797.
+CASMI 2026 is closed for us: the fork family finished at 0.478, rank 1,632 of 5,412.
+Soil Grain Size: v34 stands at 18.155 (lower is better), rank 74 of 839.
+Aura EMG: best is v13d at 0.54970. Final selection is mine to pick before 1 Dec.
+Name That LLM next gains need a genuinely new data axis, not another backbone.
+TODO: Pick the two CASMI final submissions before the 10 Dec freeze
+ACTION: Shortlist Soil Grain Size finals (v34 plus one hedge) before 30 Nov
+NEXT STEP: Prototype one new-data-axis idea for Name That LLM and gate it honestly
+
+
+--- TASK 3: count_lines('TODO') — search/count across all files ---
+kaggle_scores.md: 1
+linkedin_draft_idea.md: 1
+report_task.md: 1
+TOTAL lines containing 'TODO': 3
+
+[done] All three tasks completed through MCP tool calls.
