@@ -1,0 +1,39 @@
+{
+  "assignment": "ML-09",
+  "seed": 42,
+  "honest_split": {
+    "name": "client_holdout",
+    "test_rows": 2325,
+    "test_base_rate": 0.3909677419354839
+  },
+  "random_forest": {
+    "random_row_split": {
+      "split": "random row split (before)",
+      "P@20": 0.9,
+      "P@50": 0.9,
+      "P@100": 0.9,
+      "ROC AUC": 0.758,
+      "Avg precision": 0.769,
+      "test base rate": 0.542
+    },
+    "client_holdout": {
+      "split": "client holdout (after)",
+      "P@20": 0.7,
+      "P@50": 0.68,
+      "P@100": 0.7,
+      "ROC AUC": 0.747,
+      "Avg precision": 0.61,
+      "test base rate": 0.391
+    }
+  },
+  "deliberate_leak_control": {
+    "added_feature": "trend_pct",
+    "precision_at_50": 1.0,
+    "roc_auc": 1.0,
+    "verdict": "perfect score = leakage confession; feature banned everywhere else"
+  },
+  "flags_variant_top50_client_mix": {
+    "client_f74efabef1": 49,
+    "client_4fc82b26ae": 1
+  }
+}
