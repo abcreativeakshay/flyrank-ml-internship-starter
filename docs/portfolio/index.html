@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Akshay Biradar — AI Engineer</title>
+<meta name="description" content="Akshay Biradar — B.Tech CS student at MIT ADT University, Pune and AI Engineer at Peakso. I build AI systems that ship and get measured.">
+<style>
+  :root{
+    --bg:#161210; --panel:#221b16; --border:#3a2f26;
+    --amber:#f2a93b; --text:#f3ead9; --muted:#b8a88f; --faint:#8a7a63;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:Inter, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height:1.65; font-size:17px;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:0 20px;}
+  header{padding:72px 0 40px;}
+  .label{
+    font-size:13px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--amber); margin-bottom:14px;
+  }
+  h1{
+    font-family:Fraunces, Georgia, "Times New Roman", serif;
+    font-size:52px; line-height:1.1; font-weight:700; margin-bottom:16px;
+  }
+  .claim{font-size:21px; color:var(--text); max-width:620px;}
+  .claim strong{color:var(--amber); font-weight:600;}
+  .sub{color:var(--muted); margin-top:14px; font-size:16px;}
+  section{padding:36px 0;}
+  h2{
+    font-family:Fraunces, Georgia, "Times New Roman", serif;
+    font-size:30px; margin-bottom:20px;
+  }
+  .case{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:10px; padding:24px 26px; margin-bottom:18px;
+  }
+  .case h3{font-size:20px; margin-bottom:8px;}
+  .case h3 .tag{
+    font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--amber); display:block; margin-bottom:6px;
+  }
+  .case p{color:var(--muted); margin-bottom:10px;}
+  .case p b, .case p strong{color:var(--text);}
+  .case .num{color:var(--amber); font-weight:700;}
+  .case a{color:var(--amber); text-decoration:none; border-bottom:1px solid var(--border);}
+  .case a:hover{border-bottom-color:var(--amber);}
+  .about p{color:var(--muted); max-width:640px; margin-bottom:10px;}
+  .about p strong{color:var(--text);}
+  form{display:grid; gap:14px; max-width:560px;}
+  label{font-size:14px; color:var(--muted); display:grid; gap:6px;}
+  input, textarea{
+    background:var(--panel); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); padding:12px 14px; font:inherit; font-size:16px; width:100%;
+  }
+  input:focus, textarea:focus{outline:2px solid var(--amber); outline-offset:1px;}
+  button{
+    background:var(--amber); color:#161210; border:0; border-radius:8px;
+    padding:13px 22px; font:inherit; font-weight:700; cursor:pointer; justify-self:start;
+  }
+  button:hover{opacity:.9;}
+  footer{
+    border-top:1px solid var(--border); padding:28px 0 44px; margin-top:20px;
+    color:var(--faint); font-size:15px;
+    display:flex; flex-wrap:wrap; gap:10px 26px;
+  }
+  footer a{color:var(--muted); text-decoration:none;}
+  footer a:hover{color:var(--amber);}
+  @media (max-width:600px){
+    header{padding:48px 0 28px;}
+    h1{font-size:38px;}
+    .claim{font-size:18px;}
+    h2{font-size:25px;}
+    .case{padding:20px;}
+    body{font-size:16px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="label">Akshay Biradar</div>
+    <h1>I build AI systems that ship and get measured.</h1>
+    <p class="claim">Live demos, public code, and scores from held-out data — currently a Random Forest at <strong>Precision@50 0.68 vs a 0.24 rule baseline</strong> on the FlyRank capstone.</p>
+    <p class="sub">B.Tech Computer Science, MIT ADT University, Pune (2024–2028) · AI Engineer at Peakso (remote)</p>
+  </header>
+
+  <section id="cases">
+    <h2>Cases</h2>
+
+    <div class="case">
+      <h3><span class="tag">Voice AI · Multilingual</span>COGNIVA</h3>
+      <p>A <strong>voice-first dementia-care companion</strong> and clinical care platform for patients, family caregivers and healthcare providers — in <strong>English, Hindi and Marathi</strong>, because the people who need it most may not type or read English. Built with the Peakso team on a hybrid Hugging Face + Google Gemini pipeline.</p>
+      <p><a href="https://dementia-care-companion.peaksotech.workers.dev/">Open the live demo</a></p>
+    </div>
+
+    <div class="case">
+      <h3><span class="tag">Document AI · India</span>Kaagaz AI</h3>
+      <p>A <strong>document-to-data platform for Indian documents</strong> — GST invoices, KYC, claims, bank statements — from PDFs, scans and phone photos. Gemini extracts the fields; the part that makes it usable is the validation on top: <strong>GSTIN checks, invoice-math reconciliation and duplicate detection</strong>.</p>
+      <p>Extraction is the demo. Validation is the product.</p>
+    </div>
+
+    <div class="case">
+      <h3><span class="tag">Machine Learning · Ranking</span>FlyRank ML Capstone</h3>
+      <p>A search-intelligence ranking system that scores which content pages are declining, so a team knows what to refresh first. Full pipeline: data contract, transparent baseline, Random Forest, validation audit, action playbook.</p>
+      <p>On a client-holdout split: <span class="num">Precision@50 0.68</span> and <span class="num">AUC 0.747</span>, against <span class="num">0.24</span> for the hand-rule baseline. The trend columns are leakage and were never used as features.</p>
+      <p><a href="https://github.com/abcreativeakshay/flyrank-ml-internship-starter">Read the repo and the audit</a></p>
+    </div>
+
+    <div class="case">
+      <h3><span class="tag">Data Engineering · Healthcare</span>DMDW — Healthcare Data Warehouse</h3>
+      <p>A <strong>healthcare data warehouse and dashboard project</strong>: hospital data modelled in <strong>Snowflake</strong>, with <strong>Streamlit</strong> dashboards on top — warehouse design, OLAP-style analysis, and a front end a non-technical viewer can use.</p>
+      <p>The unglamorous work underneath the AI: schemas, queries, and dashboards that hold up.</p>
+    </div>
+  </section>
+
+  <section class="about" id="about">
+    <h2>About</h2>
+    <p>I'm <strong>Akshay Biradar</strong>, a third-year B.Tech Computer Science student at <strong>MIT ADT University, Pune</strong> and an <strong>AI Engineer at Peakso</strong>, where I work remotely on AI products.</p>
+    <p>I also compete on Kaggle — four active competitions, including Name That LLM (<strong>0.538</strong>), CASMI molecule identification (<strong>0.478</strong>), Aura EMG gesture recognition (<strong>0.550</strong>) and Soil Grain Size (<strong>18.155</strong>). Leaderboard scores, not claims.</p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p style="color:var(--muted); margin-bottom:18px; max-width:560px;">Open to internships, freelance builds and collaborations. Send a message here, or find me on LinkedIn and GitHub below.</p>
+    <form action="https://formsubmit.co/abcreativeakshay@gmail.com" method="POST">
+      <label>Your name
+        <input type="text" name="name" required>
+      </label>
+      <label>Your email
+        <input type="email" name="email" required>
+      </label>
+      <label>Message
+        <textarea name="message" rows="5" required></textarea>
+      </label>
+      <button type="submit">Send message</button>
+    </form>
+  </section>
+
+  <footer>
+    <a href="https://www.linkedin.com/in/abcreativeakshay">LinkedIn</a>
+    <a href="https://github.com/abcreativeakshay">GitHub</a>
+    <a href="https://akshay.peakso.in">akshay.peakso.in</a>
+    <span>© Akshay Biradar</span>
+  </footer>
+
+</div>
+</body>
+</html>
