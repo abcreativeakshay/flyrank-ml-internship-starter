@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlyRank ML Capstone — Refresh Opportunity Scoring | Akshay Biradar</title>
+<style>
+body { font-family: Georgia, 'Times New Roman', serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; line-height: 1.65; color: #1a1a1a; }
+h1, h2, h3 { font-family: Helvetica, Arial, sans-serif; line-height: 1.3; }
+table { border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem; }
+th, td { border: 1px solid #bbb; padding: 4px 10px; text-align: left; }
+figure { margin: 1.5rem 0; text-align: center; }
+figure img { max-width: 100%; border: 1px solid #ddd; }
+figcaption { font-size: 0.85rem; color: #555; margin-top: 0.4rem; }
+code { background: #f2f2f2; padding: 1px 4px; border-radius: 3px; }
+pre { background: #f7f7f7; padding: 0.8rem; overflow-x: auto; }
+</style></head><body>
+<h1>Capstone Report — Lane 2: Refresh / Content Opportunity Scoring</h1>
+<ul>
+<li><strong>Author:</strong> Akshay Biradar</li>
+<li><strong>Lane:</strong> Lane 2 — Refresh / Content Opportunity Scoring</li>
+<li><strong>Repo:</strong> this repository (my copy of the FlyRank ML Internship starter)</li>
+<li><strong>Date:</strong> November 2026</li>
+</ul>
+<h2>0. Abstract</h2>
+<p>Given a portfolio of existing pages and a reviewer who can look at about 50 pages a week,
+which pages should be reviewed first for a content refresh — and can a model rank them
+better than the transparent rules a human would write? I worked on the starter release of
+the FlyRank ML Internship dataset: 30,000 pseudonymized pages from 32 clients, with
+trailing-90-day search and engagement metrics and an observed decline label on 54.2% of
+pages. I compared two hand-written rules against three learned models under a strict
+client-holdout design (seed 42), after auditing the data contract, the label's leakage
+paths, and the portfolio's popular beliefs. On clients the model had never seen, a random
+forest's top 50 contained about 2.8× as many observed-declining pages as the reference
+rule's top 50 (Precision@50 0.68 vs 0.24, holdout base rate 0.391). The output is a ranked
+review queue with plain-language reason codes and a weekly playbook — decision-support
+for human reviewers, not an automated publishing decision and not a causal claim about
+what a refresh will do.</p>
+<h2>1. Problem framing</h2>
+<p><strong>The decision:</strong> the weekly ordering of the content-refresh review queue. A FlyRank
+editor works through existing pages that may need a refresh; the queue decides which
+pages get human attention first.</p>
+<ul>
+<li><strong>Unit of analysis:</strong> one content page (one row per content item per snapshot).</li>
+<li><strong>Output:</strong> a ranked queue — per page, a score, a suggested action (<code>refresh</code>,
+  <code>refresh_and_review_ctr</code>, <code>refresh_and_review_engagement</code>, <code>expand_and_refresh</code>,
+  <code>monitor</code>) and reason codes in plain words.</li>
+<li><strong>Action a human takes:</strong> review the page, verify measurement, then edit, expand,
+  monitor, or leave it — the queue never edits anything itself.</li>
+<li><strong>Cost of a wrong call:</strong> a false positive wastes one scarce review slot; a false
+  negative leaves a declining page that still has an audience unreviewed another week.</li>
+</ul>
+<p><strong>Why data/ML helps at all:</strong> the scale rules out manual triage. 16,262 of 30,000 pages
+(54.2%) carry the observed decline label, and those pages hold 51.3% of all 90-day
+impressions — at 50 reviews a week, portfolio order would take ~325 weeks to reach them
+all. The obvious shortcut fails as well: "just review stale pages" misses the problem,
+because staleness alone does not separate declining pages (my signal audit, ML-06, found
+the "older pages decline" belief comes out OPPOSITE in this data). What remains is a
+ranking problem, and ranking quality is measurable — that is the whole shape of the lane.</p>
+<h2>2. Data safety</h2>
+<p><strong>Data used:</strong> the starter release that ships with this repo,
+<code>data/raw/content_refresh_anonymized.csv</code> (30,000 rows × 44 columns), plus the pipeline's
+prepared feature vector derived from it. I did not use the gated warehouse release; the
+starter slice is the dataset every weekly assignment shares, which keeps ML-02…ML-10
+numbers comparable.</p>
+<p><strong>Deliberately excluded:</strong></p>
+<ul>
+<li><code>trend_direction</code> and <code>trend_pct</code> — they define the label (Section 4), so using them
+  as features would be reading the answer key. ML-05 demonstrated the trap: adding
+  <code>trend_pct</code> produces a perfect, meaningless AUC of 1.000.</li>
+<li><code>content_id</code> / <code>client_id</code> as features — pseudonymous IDs, used for grouping, joining
+  and splitting only (DATA_USE.md).</li>
+<li>Product decision flags — not shipped in this release at all, so nothing here learns
+  the product's own decisions.</li>
+</ul>
+<p><strong>Leakage risks considered:</strong> label-derived fields (above); split leakage (a random row
+split lets the model memorise which client a page belongs to — ML-09 measured the
+inflation: P@50 0.90 random vs 0.68 grouped); and window leakage (all features are
+trailing-90-day aggregates from the same snapshot as the label — stated as a limitation
+in Section 5, since this file has no calendar dates to build a past→future split from).</p>
+<p><strong>Missingness:</strong> patterned, not random — it follows <code>content_type</code> (ML-04). The pipeline
+adds availability flags (<code>has_clicks</code>, <code>has_ai_sessions</code>, <code>measurable_opportunity</code>)
+instead of blind-filling. <code>avg_position = 0</code> means <em>no data</em> (1,205 pages); rate columns
+are percentages on a 0–100 scale.</p>
+<p><strong>Confirmation:</strong> no client names, domains, URLs, page titles or raw queries exist in
+this release or anywhere in <code>work/</code>; every ID in my notebooks is a shipped pseudonym.</p>
+<h2>3. Baseline</h2>
+<p>Two transparent baselines, both scored on the same client holdout as the model
+(Section 5):</p>
+<ol>
+<li><strong>The reference rule</strong> (<code>scripts/02_baseline_score.py</code>) — the pipeline's hand-built
+   refresh score blending visibility, freshness risk, position opportunity and depth
+   gap, with reason codes. It is the fair comparison because it is what a competent
+   analyst ships without ML, and it is the queue the pipeline itself blends against.
+   Holdout: <strong>P@20 0.15 · P@50 0.24 · P@100 0.36 · ROC AUC 0.627 · AP 0.468</strong>.</li>
+<li><strong>My own points rule</strong> (ML-07) — integer points (0–11) for staleness, visibility,
+   position risk/room, weak CTR capture and thin-but-seen, every point explainable in
+   one sentence, impressions as tie-break. Holdout: <strong>P@20 0.50 · P@50 0.48 · P@100 0.44
+   · ROC AUC 0.573 · AP 0.440</strong>. It beats the reference rule at the top of the queue —
+   and its top-20 review taught me its failure modes: 15 of its top 20 came from one
+   large client, and its #3 pick was a page whose engagement was probably never
+   measured (208K impressions, 0 clicks, 6 sessions).</li>
+</ol>
+<p>A dummy classifier (prior probabilities) sits under both as the floor: P@K ≈ the holdout
+base rate (0.391), AUC 0.500, exactly as it must.</p>
+<h2>4. Model / analysis</h2>
+<p><strong>Target, in one sentence:</strong> <code>is_declining_label</code> — 1 exactly when a page's observed
+trailing-window trend direction is "down", 0 otherwise.</p>
+<p><strong>Method:</strong> classifier probabilities used as a ranking score, evaluated with Precision@K
+— the deliverable is an ordered queue, so the metric describes an ordered queue. Models,
+in the order tried (the pipeline's own learners, so the comparison stays clean):
+dummy (prior) → logistic regression (scaled, class-weighted) → decision tree (depth 5)
+→ random forest (200 trees, depth 10, class-weighted). One experiment on top: a second
+forest adding the three availability flags from step 01 that the reference feature list
+leaves out.</p>
+<p><strong>Features (exact list):</strong> 18 numeric — <code>search_volume</code>, <code>competition</code>, <code>cpc</code>,
+<code>word_count</code>, <code>char_count</code>, <code>log_impressions_90d</code>, <code>log_clicks_90d</code>, <code>log_sessions_90d</code>,
+<code>log_ai_sessions_90d</code>, <code>days_with_impressions</code>, <code>days_with_sessions</code>, <code>content_age_days</code>,
+<code>days_since_last_update</code>, <code>ctr</code>, <code>avg_position</code>, <code>engagement_rate</code>, <code>scroll_rate</code>,
+<code>ai_traffic_pct</code> — plus 8 categoricals one-hot encoded: <code>competition_level</code>,
+<code>content_type</code>, <code>main_intent</code>, <code>age_tier</code>, <code>freshness_tier</code>, <code>word_count_tier</code>,
+<code>impression_tier</code>, <code>position_tier</code>. Left out on purpose: the label's parents
+(<code>trend_direction</code>, <code>trend_pct</code>), both IDs, and every product flag (not shipped).</p>
+<p><strong>Why this fits the lane:</strong> the question is a ranking question over observable signals
+with an observed binary label; tree ensembles handle the mixed scales and interactions
+(freshness × visibility effects flip direction between bands — ML-02) without feature
+engineering heroics, and the depth-5 tree remains as the printable version a reviewer
+can read end-to-end.</p>
+<h2>5. Evaluation</h2>
+<p><strong>Split:</strong> client holdout, seed 42 — the 32 clients are shuffled once, ~20% held out:
+26 clients train (27,675 pages), 6 clients test (2,325 pages), zero client overlap
+(asserted in code). Grouped, because pages from one client share site-level character;
+the deployment question is whether the ranking works on a portfolio the model has not
+seen. Not time-aware, because the file has no calendar dates — I say so rather than
+faking a time axis. <strong>Metrics:</strong> Precision@20/50/100, ROC AUC, average precision.
+<strong>Base rates, always next to the metrics:</strong> full data 0.542 · train 0.555 · holdout
+0.391 (the six held-out clients decline less, so P@K on this slice starts from a lower
+floor — random ordering scores ≈0.39).</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th style="text-align: right;">P@20</th>
+<th style="text-align: right;">P@50</th>
+<th style="text-align: right;">P@100</th>
+<th style="text-align: right;">ROC AUC</th>
+<th style="text-align: right;">Avg precision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>reference rule (scripts/02)</td>
+<td style="text-align: right;">0.15</td>
+<td style="text-align: right;">0.24</td>
+<td style="text-align: right;">0.36</td>
+<td style="text-align: right;">0.627</td>
+<td style="text-align: right;">0.468</td>
+</tr>
+<tr>
+<td>my points rule (ML-07)</td>
+<td style="text-align: right;">0.50</td>
+<td style="text-align: right;">0.48</td>
+<td style="text-align: right;">0.44</td>
+<td style="text-align: right;">0.573</td>
+<td style="text-align: right;">0.440</td>
+</tr>
+<tr>
+<td>dummy (prior)</td>
+<td style="text-align: right;">0.30</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">0.37</td>
+<td style="text-align: right;">0.500</td>
+<td style="text-align: right;">0.391</td>
+</tr>
+<tr>
+<td>logistic regression</td>
+<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">0.44</td>
+<td style="text-align: right;">0.700</td>
+<td style="text-align: right;">0.522</td>
+</tr>
+<tr>
+<td>decision tree</td>
+<td style="text-align: right;">0.65</td>
+<td style="text-align: right;">0.66</td>
+<td style="text-align: right;">0.68</td>
+<td style="text-align: right;">0.742</td>
+<td style="text-align: right;">0.575</td>
+</tr>
+<tr>
+<td><strong>random forest</strong></td>
+<td style="text-align: right;"><strong>0.70</strong></td>
+<td style="text-align: right;"><strong>0.68</strong></td>
+<td style="text-align: right;"><strong>0.70</strong></td>
+<td style="text-align: right;"><strong>0.747</strong></td>
+<td style="text-align: right;"><strong>0.610</strong></td>
+</tr>
+<tr>
+<td>random forest + has_ flags (experiment)</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">0.84</td>
+<td style="text-align: right;">0.79</td>
+<td style="text-align: right;">0.752</td>
+<td style="text-align: right;">0.630</td>
+</tr>
+</tbody>
+</table>
+<p>Receipts: <code>work/outputs/w05_model_metrics.json</code> (ML-08) and
+<code>work/outputs/w06_validation_audit.json</code> (ML-09). The capstone notebook independently
+recomputed this table in one run: every row matches the receipts exactly except the
+flags experiment (P@50 0.82 on the rerun vs 0.84 in ML-08) — a one-page boundary
+difference in the variant whose top 50 is a single client's pages; no conclusion moves.</p>
+<p><strong>Error analysis (ML-08), in brief.</strong> False positives — ranked high, not declining —
+are substantial pages that <em>held up</em>: real length (2,200–4,500 words), middling
+positions, indistinguishable from declining pages on every observable available. I read
+them as the honest ceiling of this feature set. False negatives — declining, ranked
+last — are near-invisible pages (1–3 impressions, position unmeasured): a measurement
+floor, not evidence of health. Slices: keyword articles P@50 0.68 against a 0.524 slice
+base rate; feedly articles harder, P@50 0.52 against a 0.201 base rate.</p>
+<p><strong>What this work cannot claim</strong> (also Section 5 of the capstone notebook): one
+cross-sectional snapshot — association and ranking quality were measured, refresh
+impact was not; no causal claim is available without an experiment. Metrics are
+slice-dependent (base rates above). The forest's P@50 is library-version sensitive
+(0.68–0.74 per the GUIDE FAQ); the stable claim is the ~3× lift over the reference
+rule, not the third decimal.</p>
+<h2>6. Interpretation</h2>
+<p><strong>What the model found:</strong> it leans on visibility and age — <code>log_impressions_90d</code>,
+<code>days_with_impressions</code>, <code>avg_position</code>, <code>content_age_days</code> lead the importances
+(<code>work/figures/capstone_feature_importance.png</code>). The model found the reviewer's
+intuition, weighted better: pages with an audience that is slipping, in positions worth
+protecting. No feature is suspiciously perfect, and no ID is in the matrix.</p>
+<p><strong>What the audits found (the findings under the model):</strong></p>
+<ul>
+<li>Search volume → decline: <strong>CONFIRMED</strong> (ML-06) — decline concentrates where the
+  audience is; declining pages hold 51.3% of impressions.</li>
+<li>"Older pages decline": <strong>OPPOSITE</strong> — the portfolio's stale-page instinct aims at the
+  wrong end.</li>
+<li>Staleness as a single signal: <strong>MIXED</strong> — and the field itself is coarse in this
+  slice (median 20 days since update, 75th percentile 104), so staleness codes are
+  approximate.</li>
+<li>Position data is only partly measured (<code>avg_position = 0</code> on 1,205 pages;
+  <code>position_tier</code> half unmeasured) — position-based reason codes deserve a human
+  glance.</li>
+</ul>
+<p><strong>Surprises and negative results, kept on the record:</strong> logistic regression (P@50 0.40)
+did <em>not</em> beat my hand rule (0.48) — "learned" does not automatically beat
+"hand-written". The flags variant's headline-grabbing 0.84 comes with 49 of its top 50
+from a single held-out client (ML-09), so it is reported as directional, not as the
+result. And the perfect score exists in this project exactly once — the deliberate
+leak control (AUC 1.000 with <code>trend_pct</code>) — where it belongs: as a warning.</p>
+<h2>7. Recommendation</h2>
+<p>Ranked — what a FlyRank editor does with this tomorrow (full playbook: ML-10,
+<code>work/notebooks/w07_action_playbook.ipynb</code>):</p>
+<ol>
+<li><strong>Review the blended queue top-down in weekly batches of 50, high-confidence tier
+   first</strong> (3,576 high · 11,424 medium · 15,000 low). At the measured holdout rate, a
+   model-ordered batch holds roughly 34 pages warranting action vs ~12 for the
+   reference rule's ordering.</li>
+<li><strong>Cap any single client at 20 pages per weekly batch</strong>; fill from the next clients
+   down the queue.</li>
+<li><strong>Measurement check before any edit:</strong> high impressions with exactly-zero clicks or
+   engagement → verify tracking first (ML-10 flags this automatically on the top 100;
+   4 of the current top 100 carry a pre-review flag).</li>
+<li><strong>Match the action to the reason codes:</strong> <code>refresh_and_review_ctr</code> (6,655 pages)
+   gets snippet/intent review before deep rewrites; <code>expand_and_refresh</code> (82) gets
+   depth work; <code>refresh</code> (8,207) gets a general refresh review; <code>monitor</code> (13,069)
+   gets no edits.</li>
+<li><strong>Keep the transparent rule as fallback and cross-check</strong> — where model and points
+   rule agree, confidence is highest.</li>
+<li><strong>The no-go list:</strong> never auto-publish edits, never delete/redirect/noindex from
+   queue position, never send the queue to a client as a recovery promise, never act
+   on the low-confidence tier without full human review.</li>
+<li><strong>Re-validate on every new snapshot</strong> against the ML-10 fingerprint (base rate
+   0.542; feature medians; 1,205 position-unmeasured pages); replace the model only
+   when a fresh client holdout matches or beats P@50 = 0.68.</li>
+</ol>
+<p><strong>Confidence and limits, explicitly:</strong> I am confident in the <em>ordering</em> claim on
+portfolios similar to these 32 clients — it survived a grouped holdout, two baselines
+and a leakage audit. I make no claim that acting on the queue improves any page's
+trajectory; that needs an experiment this dataset cannot run. Treat the first queue
+for any brand-new client as directional until its own outcomes have been observed.</p>
+<h2>8. Reproducibility</h2>
+<p>From a fresh clone:</p>
+<pre><code class="language-bash">pip install -r requirements.txt
+python scripts/run_all.py            # reference pipeline: features → baseline → models → queue → report
+# then run the work notebooks top to bottom, in order:
+# work/notebooks/w01_research_question.ipynb        (ML-02)
+# work/notebooks/w02_ml_task_framing.ipynb          (ML-03)
+# work/notebooks/w03_data_contract.ipynb            (ML-04)
+# work/notebooks/w03_feature_leakage_check.ipynb    (ML-05)
+# work/notebooks/w04_signal_audit.ipynb             (ML-06)
+# work/notebooks/w04_baseline_score.ipynb           (ML-07)
+# work/notebooks/w05_model.ipynb                    (ML-08)
+# work/notebooks/w06_validation_audit.ipynb         (ML-09)
+# work/notebooks/w07_action_playbook.ipynb          (ML-10)
+# work/notebooks/capstone.ipynb                     (ML-11 + ML-12)
+</code></pre>
+<ul>
+<li><strong>Seed:</strong> 42 everywhere (split, models, sampling).</li>
+<li><strong>Environment:</strong> the repo's <code>requirements.txt</code> (pandas, numpy, scikit-learn,
+  matplotlib, reportlab, duckdb, huggingface_hub); no deltas. The forest's P@50 is
+  library-version sensitive (GUIDE FAQ: 0.68–0.74 across stacks) — the lift over
+  baseline is the stable claim.</li>
+<li><strong>Receipts committed with this report:</strong> <code>work/outputs/w05_model_metrics.json</code>,
+  <code>work/outputs/w06_validation_audit.json</code>, <code>work/outputs/playbook_summary.json</code>, and
+  the charts in <code>work/figures/</code>. The holdout evaluation is checkable from the repo:
+  the split is built in the capstone notebook's Section 3 cell, the table in its
+  Section 4 cell, and the metrics files above are what those cells' runs produced in
+  ML-08/ML-09. Dataset CSVs are never committed (CI enforces this); queue CSVs under
+  <code>work/outputs/</code> are gitignored working files by design.</li>
+</ul>
+<h2>9. Acknowledgments &amp; data credit</h2>
+<p>Built on the FlyRank ML Internship dataset — the anonymized starter release shipped
+with the internship's starter repository. Data credit: <a href="https://flyrank.ai">FlyRank</a>.
+Thanks to the FlyRank internship team for the dataset, the reference pipeline, and the
+skill library that set the honesty bar this report tries to meet.</p>
+<h2>Figures</h2>
+<figure><img src="capstone_p50_comparison.png" alt="capstone_p50_comparison.png"><figcaption>capstone p50 comparison</figcaption></figure><figure><img src="capstone_precision_at_k.png" alt="capstone_precision_at_k.png"><figcaption>capstone precision at k</figcaption></figure><figure><img src="capstone_action_mix.png" alt="capstone_action_mix.png"><figcaption>capstone action mix</figcaption></figure><figure><img src="capstone_feature_importance.png" alt="capstone_feature_importance.png"><figcaption>capstone feature importance</figcaption></figure>
+</body></html>
